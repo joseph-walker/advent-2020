@@ -2,7 +2,7 @@
 
 [Install Haskell - Mac](https://www.haskell.org/ghcup/)
 
-Run a probblem:
+Run a problem:
 ```sh
 cd day<n>
 runghc main.hs
