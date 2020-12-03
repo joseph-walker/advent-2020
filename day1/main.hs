@@ -1,16 +1,21 @@
-import Data.List
-
-combinations :: [Int] -> [([Int], Int)]
+combinations :: [Int] -> Int
 combinations list =
-    [([a, b], a + b) | a <- list , b <- list, a /= b]
+    head $ [a * b |
+        a <- list, 
+        b <- list, 
+        a /= b, 
+        a + b == 2020
+        ]
 
-combinations3 :: [Int] -> [([Int], Int)]
+combinations3 :: [Int] -> Int
 combinations3 list =
-    [([a, b, c], a + b + c) | a <- list, b <- list, c <- list, a /= b && b /= c && c /= a]
-
-first2020 :: [(a, Int)] -> Maybe a
-first2020 xs =
-    fst <$> find (\(_, sum) -> sum == 2020) xs
+    head $ [a * b * c |
+        a <- list, 
+        b <- list, 
+        c <- list, 
+        a /= b && b /= c && c /= a, 
+        a + b + c == 2020
+        ]
 
 readInput :: IO [Int]
 readInput = do
@@ -20,7 +25,5 @@ readInput = do
 main :: IO ()
 main = do
     list <- readInput
-    solveAndShow $ combinations list
-    solveAndShow $ combinations3 list
-    where
-        solveAndShow = print . fmap product . first2020
+    print $ combinations list
+    print $ combinations3 list
