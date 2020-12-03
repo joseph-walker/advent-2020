@@ -20,5 +20,7 @@ readInput = do
 main :: IO ()
 main = do
     list <- readInput
-    print . fmap product . first2020 $ combinations list
-    print . fmap product . first2020 $ combinations3 list
+    solveAndShow $ combinations list
+    solveAndShow $ combinations3 list
+    where
+        solveAndShow = print . fmap product . first2020
