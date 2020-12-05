@@ -99,6 +99,7 @@ pPassportGeneric :: ParsecT String u Identity Passport
 pPassportGeneric = 
     Map.fromList <$> pKeyValPairGeneric `sepBy` space
 
+pPassport :: ParsecT String u Identity [(String, Maybe PassportValue)]
 pPassport =
     pPassportEntry `sepBy` space
     where
