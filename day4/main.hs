@@ -5,6 +5,8 @@ import Control.Monad.Identity ( Identity )
 
 type Passport = Map.Map String String
 
+type PassportParser u = ParsecT String u Identity (String, Maybe PassportValue)
+
 data Measure
     = In Int
     | Cm Int
@@ -29,7 +31,7 @@ pKey :: String -> ParsecT String u Identity String
 pKey k = 
     string k <* char ':'
 
-makepYear :: String -> Int -> Int -> ParsecT String u Identity (String, Maybe PassportValue)
+makepYear :: String -> Int -> Int -> PassportParser u
 makepYear key low high = do
     key' <- pKey key
     val <- fmap read <$> optionMaybe (try $ count 4 digit)
@@ -40,16 +42,16 @@ makepYear key low high = do
             | val' > high = Nothing
             | otherwise = Just (Year val')
 
-pBirthYear :: ParsecT String u Identity (String, Maybe PassportValue)
+pBirthYear :: PassportParser u
 pBirthYear = makepYear "byr" 1920 2002
 
-pIssueYear :: ParsecT String u Identity (String, Maybe PassportValue)
+pIssueYear :: PassportParser u
 pIssueYear = makepYear "iyr" 2010 2020
 
-pExpireYear :: ParsecT String u Identity (String, Maybe PassportValue)
+pExpireYear :: PassportParser u
 pExpireYear = makepYear "eyr" 2020 2030
 
-pHeight :: ParsecT String u Identity (String, Maybe PassportValue)
+pHeight :: PassportParser u
 pHeight = do
     key <- pKey "hgt"
     val <- optionMaybe (try inches <|> try centimeters)
@@ -68,31 +70,38 @@ pHeight = do
             | val' > 193 = Nothing
             | otherwise = Just (Height hgt)
 
-pEyeColor :: ParsecT String u Identity (String, Maybe PassportValue)
+pEyeColor :: PassportParser u
 pEyeColor = do
     key <- pKey "ecl"
     val <- optionMaybe (try validEyeColor)
     return (key, Color <$> val)
     where
-        validEyeColor = 
-            string "amb" <|>
-            string "blu" <|>
-            string "brn" <|>
-            string "gry" <|>
-            string "grn" <|>
-            string "hzl" <|>
-            string "oth"
+        validEyeColor = choice
+            [ string "amb"
+            , string "blu"
+            , string "brn"
+            , string "gry"
+            , string "grn"
+            , string "hzl"
+            , string "oth"
+            ]
 
-pHairColor :: ParsecT String u Identity (String, Maybe PassportValue)
+pHairColor :: PassportParser u
 pHairColor = do
     key <- pKey "hcl"
     val <- optionMaybe (try $ char '#' *> count 6 (oneOf "abcdef" <|> digit))
     return (key, Hex . (:) '#' <$> val)
 
-pPassportId :: ParsecT String u Identity (String, Maybe PassportValue)
+pPassportId :: PassportParser u
 pPassportId = do
     key <- pKey "pid"
     val <- optionMaybe (try $ count 9 digit)
+    return (key, Number <$> val)
+
+pCountryId :: PassportParser u
+pCountryId = do
+    key <- pKey "cid"
+    val <- optionMaybe (try $ many1 digit)
     return (key, Number <$> val)
 
 pPassportGeneric :: ParsecT String u Identity Passport
@@ -103,14 +112,16 @@ pPassport :: ParsecT String u Identity [(String, Maybe PassportValue)]
 pPassport =
     pPassportEntry `sepBy` space
     where
-        pPassportEntry =
-            pBirthYear <|>
-            pIssueYear <|>
-            pExpireYear <|>
-            pHeight <|>
-            pEyeColor <|>
-            pHairColor <|>
-            pPassportId
+        pPassportEntry = choice
+            [ try pBirthYear
+            , try pIssueYear
+            , try pExpireYear
+            , try pHeight
+            , try pEyeColor
+            , try pHairColor
+            , try pPassportId
+            , pCountryId
+            ]
 
 isPassportValidGeneric :: Passport -> Bool
 isPassportValidGeneric p
@@ -131,6 +142,8 @@ solveA = do
 solveB :: IO ()
 solveB = do
     print "Part 2"
+    file <- splitOn "\n\n" <$> readFile "input.txt"
+    print $ parse pPassport "" <$> file
 
 main :: IO ()
 main = do
