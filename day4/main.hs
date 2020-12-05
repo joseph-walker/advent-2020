@@ -5,6 +5,10 @@ import Control.Monad.Identity ( Identity )
 
 type Passport = Map.Map String String
 
+data Height
+    = In Int
+    | Cm Int deriving (Show, Eq)
+
 pKeyValPairGeneric :: ParsecT String u Identity (String, String)
 pKeyValPairGeneric = do
     key <- count 3 letter
@@ -23,9 +27,33 @@ makepYear key low high = do
             | val' > high = Nothing
             | otherwise = Just val'
 
+pBirthYear :: ParsecT String u Identity (String, Maybe Int)
 pBirthYear = makepYear "byr" 1920 2002
+
+pIssueYear :: ParsecT String u Identity (String, Maybe Int)
 pIssueYear = makepYear "iyr" 2010 2020
+
+pExpireYear :: ParsecT String u Identity (String, Maybe Int)
 pExpireYear = makepYear "eyr" 2020 2030
+
+pHeight :: ParsecT String u Identity (String, Maybe Height)
+pHeight = do
+    key <- string "hgt" <* char ':'
+    val <- optionMaybe (try inches <|> try centimeters)
+    return (key, val >>= whereValid)
+    where
+        inches = 
+            In . read <$> many1 digit <* string "in"
+        centimeters = 
+            Cm . read <$> many1 digit <* string "cm"
+        whereValid hgt@(In val')
+            | val' < 59 = Nothing
+            | val' > 76 = Nothing
+            | otherwise = Just hgt
+        whereValid hgt@(Cm val')
+            | val' < 150 = Nothing
+            | val' > 193 = Nothing
+            | otherwise = Just hgt
 
 pEyeColor :: ParsecT String u Identity (String, Maybe String)
 pEyeColor = do
