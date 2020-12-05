@@ -5,9 +5,18 @@ import Control.Monad.Identity ( Identity )
 
 type Passport = Map.Map String String
 
-data Height
+data Measure
     = In Int
-    | Cm Int deriving (Show, Eq)
+    | Cm Int
+    deriving (Show, Eq)
+
+data PassportValue
+    = Year Int
+    | Hex String
+    | Color String
+    | Height Measure
+    | Number String
+    deriving (Show, Eq)
 
 pKeyValPairGeneric :: ParsecT String u Identity (String, String)
 pKeyValPairGeneric = do
@@ -16,29 +25,33 @@ pKeyValPairGeneric = do
     val <- many1 (alphaNum <|> char '#')
     return (key, val)
 
-makepYear :: String -> Int -> Int -> ParsecT String u Identity (String, Maybe Int)
+pKey :: String -> ParsecT String u Identity String
+pKey k = 
+    string k <* char ':'
+
+makepYear :: String -> Int -> Int -> ParsecT String u Identity (String, Maybe PassportValue)
 makepYear key low high = do
-    key' <- string key <* char ':'
+    key' <- pKey key
     val <- fmap read <$> optionMaybe (try $ count 4 digit)
     return (key', val >>= whereValid)
     where
         whereValid val'
             | val' < low = Nothing
             | val' > high = Nothing
-            | otherwise = Just val'
+            | otherwise = Just (Year val')
 
-pBirthYear :: ParsecT String u Identity (String, Maybe Int)
+pBirthYear :: ParsecT String u Identity (String, Maybe PassportValue)
 pBirthYear = makepYear "byr" 1920 2002
 
-pIssueYear :: ParsecT String u Identity (String, Maybe Int)
+pIssueYear :: ParsecT String u Identity (String, Maybe PassportValue)
 pIssueYear = makepYear "iyr" 2010 2020
 
-pExpireYear :: ParsecT String u Identity (String, Maybe Int)
+pExpireYear :: ParsecT String u Identity (String, Maybe PassportValue)
 pExpireYear = makepYear "eyr" 2020 2030
 
-pHeight :: ParsecT String u Identity (String, Maybe Height)
+pHeight :: ParsecT String u Identity (String, Maybe PassportValue)
 pHeight = do
-    key <- string "hgt" <* char ':'
+    key <- pKey "hgt"
     val <- optionMaybe (try inches <|> try centimeters)
     return (key, val >>= whereValid)
     where
@@ -49,17 +62,17 @@ pHeight = do
         whereValid hgt@(In val')
             | val' < 59 = Nothing
             | val' > 76 = Nothing
-            | otherwise = Just hgt
+            | otherwise = Just (Height hgt)
         whereValid hgt@(Cm val')
             | val' < 150 = Nothing
             | val' > 193 = Nothing
-            | otherwise = Just hgt
+            | otherwise = Just (Height hgt)
 
-pEyeColor :: ParsecT String u Identity (String, Maybe String)
+pEyeColor :: ParsecT String u Identity (String, Maybe PassportValue)
 pEyeColor = do
-    key <- string "ecl" <* char ':'
+    key <- pKey "ecl"
     val <- optionMaybe (try validEyeColor)
-    return (key, val)
+    return (key, Color <$> val)
     where
         validEyeColor = 
             string "amb" <|>
@@ -70,21 +83,33 @@ pEyeColor = do
             string "hzl" <|>
             string "oth"
 
-pHairColor :: ParsecT String u Identity (String, Maybe String)
+pHairColor :: ParsecT String u Identity (String, Maybe PassportValue)
 pHairColor = do
-    key <- string "hcl" <* char ':'
+    key <- pKey "hcl"
     val <- optionMaybe (try $ char '#' *> count 6 (oneOf "abcdef" <|> digit))
-    return (key, (:) '#' <$> val)
+    return (key, Hex . (:) '#' <$> val)
 
-pPassportId :: ParsecT String u Identity (String, Maybe String)
+pPassportId :: ParsecT String u Identity (String, Maybe PassportValue)
 pPassportId = do
-    key <- string "pid" <* char ':'
+    key <- pKey "pid"
     val <- optionMaybe (try $ count 9 digit)
-    return (key, val)
+    return (key, Number <$> val)
 
 pPassportGeneric :: ParsecT String u Identity Passport
 pPassportGeneric = 
     Map.fromList <$> pKeyValPairGeneric `sepBy` space
+
+pPassport =
+    pPassportEntry `sepBy` space
+    where
+        pPassportEntry =
+            pBirthYear <|>
+            pIssueYear <|>
+            pExpireYear <|>
+            pHeight <|>
+            pEyeColor <|>
+            pHairColor <|>
+            pPassportId
 
 isPassportValidGeneric :: Passport -> Bool
 isPassportValidGeneric p
@@ -92,11 +117,21 @@ isPassportValidGeneric p
     | Map.size p == 7 && Map.notMember "cid" p = True
     | otherwise = False
 
-main :: IO ()
-main = do
+solveA :: IO ()
+solveA = do
+    print "Part 1"
     file <- splitOn "\n\n" <$> readFile "input.txt"
     case sequenceA $ parse pPassportGeneric "" <$> file of
         Left _ ->
             error "Invalid Input"
         Right passports ->
             print $ length . filter (== True) $ isPassportValidGeneric <$> passports
+
+solveB :: IO ()
+solveB = do
+    print "Part 2"
+
+main :: IO ()
+main = do
+    solveA
+    solveB
