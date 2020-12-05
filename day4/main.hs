@@ -42,6 +42,18 @@ pEyeColor = do
             string "hzl" <|>
             string "oth"
 
+pHairColor :: ParsecT String u Identity (String, Maybe String)
+pHairColor = do
+    key <- string "hcl" <* char ':'
+    val <- optionMaybe (try $ char '#' *> count 6 (oneOf "abcdef" <|> digit))
+    return (key, (:) '#' <$> val)
+
+pPassportId :: ParsecT String u Identity (String, Maybe String)
+pPassportId = do
+    key <- string "pid" <* char ':'
+    val <- optionMaybe (try $ count 9 digit)
+    return (key, val)
+
 pPassportGeneric :: ParsecT String u Identity Passport
 pPassportGeneric = 
     Map.fromList <$> pKeyValPairGeneric `sepBy` space
