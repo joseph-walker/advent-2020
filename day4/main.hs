@@ -1,9 +1,12 @@
 import Text.Parsec
+import Data.Maybe ( isJust )
 import qualified Data.Map as Map
 import Data.List.Split ( splitOn )
 import Control.Monad.Identity ( Identity )
 
-type Passport = Map.Map String String
+type PassportGeneric = Map.Map String String
+
+type Passport = Map.Map String (Maybe PassportValue)
 
 type PassportParser u = ParsecT String u Identity (String, Maybe PassportValue)
 
@@ -76,7 +79,7 @@ pEyeColor = do
     val <- optionMaybe (try validEyeColor)
     return (key, Color <$> val)
     where
-        validEyeColor = choice
+        validEyeColor = choice $ try <$>
             [ string "amb"
             , string "blu"
             , string "brn"
@@ -104,30 +107,41 @@ pCountryId = do
     val <- optionMaybe (try $ many1 digit)
     return (key, Number <$> val)
 
-pPassportGeneric :: ParsecT String u Identity Passport
+pPassportGeneric :: ParsecT String u Identity PassportGeneric
 pPassportGeneric = 
     Map.fromList <$> pKeyValPairGeneric `sepBy` space
 
-pPassport :: ParsecT String u Identity [(String, Maybe PassportValue)]
+pPassport :: ParsecT String u Identity Passport
 pPassport =
-    pPassportEntry `sepBy` space
+    Map.fromList <$> pPassportEntry `sepBy` space
     where
-        pPassportEntry = choice
-            [ try pBirthYear
-            , try pIssueYear
-            , try pExpireYear
-            , try pHeight
-            , try pEyeColor
-            , try pHairColor
-            , try pPassportId
+        pPassportEntry = choice $ try <$>
+            [ pBirthYear
+            , pIssueYear
+            , pExpireYear
+            , pHeight
+            , pEyeColor
+            , pHairColor
+            , pPassportId
             , pCountryId
             ]
 
-isPassportValidGeneric :: Passport -> Bool
+isPassportValidGeneric :: PassportGeneric -> Bool
 isPassportValidGeneric p
     | Map.size p == 8 = True
     | Map.size p == 7 && Map.notMember "cid" p = True
     | otherwise = False
+
+isPassportValid :: Passport -> Bool
+isPassportValid p
+    | Map.size p < 7 = False
+    | Map.size p == 7 && Map.notMember "cid" p = passportHasAllFields p
+    | Map.size p == 8 = passportHasAllFields (Map.delete "cid" p)
+    | otherwise = False
+    where 
+        passportHasAllFields :: Passport -> Bool
+        passportHasAllFields p' = 
+            isJust . sequence $ snd <$> Map.toList p'
 
 solveA :: IO ()
 solveA = do
@@ -143,7 +157,11 @@ solveB :: IO ()
 solveB = do
     print "Part 2"
     file <- splitOn "\n\n" <$> readFile "input.txt"
-    print $ parse pPassport "" <$> file
+    case sequenceA $ parse pPassport "" <$> file of
+        Left _ ->
+            error "Invalid Input"
+        Right passports ->
+            print $ length . filter (== True) $ isPassportValid <$> passports
 
 main :: IO ()
 main = do
