@@ -54,5 +54,5 @@ main = do
     case input of
         Left _ -> error "Invalid Input"
         Right rules ->
-            print . length . filter (== True ) $ traverseRulesPtA rules <$> Map.keys rules
+            print . length . filter (== True) $ traverseRulesPtA rules <$> Map.keys rules
     print "Part 2"
